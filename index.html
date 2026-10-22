@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>شاشة التلفزيون</title>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#fff;--soft:rgba(255,255,255,.75);--gold:#f3d9a4;--glass:rgba(40,36,30,.45)}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;overflow:hidden;cursor:none}
+body{font-family:'Readex Pro','Segoe UI',Tahoma,sans-serif;color:var(--ink);
+background:
+ radial-gradient(ellipse 60% 40% at 50% 38%,#8a6a4e 0,#6d5441 40%,transparent 41%),
+ linear-gradient(#aebfd0 0,#d6cbb9 45%,#c9a57c 46%,#b08560 70%,#6a4b37 100%)}
+.screen{position:relative;height:100%;padding:3vh 3.5vw}
+.tl{position:absolute;top:3vh;left:3.5vw;direction:rtl;text-align:left}
+.tr{position:absolute;top:3vh;right:3.5vw;text-align:right}
+.tl .temp{font-size:3.2vh;color:var(--gold);font-weight:600}
+.tl small,.tr small{display:block;font-size:1.9vh;color:var(--soft)}
+.tr .h{font-size:3.4vh;font-weight:600}
+.clock{position:absolute;right:6vw;top:34vh;font-size:23vh;font-weight:600;line-height:1;text-shadow:0 .6vh 3vh rgba(0,0,0,.35)}
+.clock sup{font-size:4vh;font-weight:400;margin-inline-start:1vw}
+.hadith{position:absolute;left:3.5vw;top:40vh;width:38vw;padding:2vh 1.6vw;background:var(--glass);backdrop-filter:blur(6px);border-radius:1.2vh}
+.hadith b{display:block;font-size:1.8vh;color:var(--gold);margin-bottom:1vh}
+.hadith p{font-size:2.3vh;line-height:1.8}
+.hadith i{display:block;font-style:normal;font-size:1.7vh;color:var(--soft);margin-top:.8vh}
+.bottom{position:absolute;left:3.5vw;right:3.5vw;bottom:3vh;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid rgba(255,255,255,.35);padding-top:2vh}
+.bottom small{display:block;font-size:1.8vh;color:var(--soft)}
+.big{font-size:3.6vh;font-weight:600}
+.mid{text-align:center}.mid .big{font-size:4.4vh}
+.pray{text-align:left}
+.note{position:absolute;bottom:.6vh;left:50%;transform:translateX(-50%);font-size:1.4vh;color:rgba(255,255,255,.5)}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="tl"><div class="temp" id="temp">--°</div><small id="city"></small></div>
+  <div class="tr"><div class="h" id="hijri"></div><small id="greg"></small></div>
+  <div class="clock"><span id="time">--:--</span><sup id="ampm"></sup></div>
+  <div class="hadith"><b>حديث اليوم</b><p id="hText"></p><i id="hSrc"></i></div>
+  <div class="bottom">
+    <div class="pray"><small>الصلاة القادمة</small><div class="big" id="pName">--</div><small id="pLeft"></small></div>
+    <div class="mid"><small>رمضان</small><div class="big" id="ram">--</div><small>يوم</small></div>
+    <div></div>
+  </div>
+</div>
+<script>
+// ===== الإعدادات: غيّر المدينة والإحداثيات هنا =====
+var CITY = 'أبها', LAT = 18.2164, LON = 42.5053;
+var NAMES = {Fajr:'الفجر',Dhuhr:'الظهر',Asr:'العصر',Maghrib:'المغرب',Isha:'العشاء'};
+var HADITH = [
+ ['إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى','صحيح البخاري'],
+ ['الْكَلِمَةُ الطَّيِّبَةُ صَدَقَةٌ','صحيح البخاري'],
+ ['يَسِّرُوا وَلَا تُعَسِّرُوا، وَبَشِّرُوا وَلَا تُنَفِّرُوا','صحيح البخاري']
+];
+function $(i){return document.getElementById(i)}
+var AR='ar-SA-u-nu-arab';
+function fmt(opts,cal){return new Intl.DateTimeFormat(cal?'ar-SA-u-ca-islamic-umalqura-nu-arab':'ar-SA-u-ca-gregory-nu-arab',opts)}
+var prayers=null, prayerDay='';
+
+function tick(){
+  var d=new Date();
+  var p=fmt({hour:'numeric',minute:'2-digit',hour12:true}).formatToParts(d);
+  var t='',ap='';
+  p.forEach(function(x){if(x.type==='dayPeriod')ap=x.value;else if(x.type!=='literal'||t)t+=x.value});
+  $('time').textContent=t.trim();$('ampm').textContent=ap;
+  $('hijri').textContent=fmt({weekday:'long',day:'numeric',month:'long',year:'numeric'},1).format(d);
+  $('greg').textContent=fmt({day:'numeric',month:'long',year:'numeric'}).format(d);
+  var k=d.toDateString();
+  if(k!==prayerDay){prayerDay=k;loadPrayers();ramadan();hadith(d)}
+  nextPrayer(d);
+}
+function hadith(d){var i=Math.floor(d/864e5)%HADITH.length;$('hText').textContent=HADITH[i][0];$('hSrc').textContent=HADITH[i][1]}
+function ramadan(){
+  var f=new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{month:'numeric',day:'numeric'});
+  var d=new Date();
+  for(var n=0;n<400;n++){
+    var x=new Date(d.getTime()+n*864e5),q=f.formatToParts(x),m,dd;
+    q.forEach(function(a){if(a.type==='month')m=+a.value;if(a.type==='day')dd=+a.value});
+    if(m===9&&dd===1){$('ram').textContent=new Intl.NumberFormat(AR).format(n);return}
+  }
+}
+function loadPrayers(){
+  var d=new Date(),s=('0'+d.getDate()).slice(-2)+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+d.getFullYear();
+  fetch('https://api.aladhan.com/v1/timings/'+s+'?latitude='+LAT+'&longitude='+LON+'&method=4')
+   .then(function(r){return r.json()}).then(function(j){prayers=j.data.timings}).catch(function(){});
+}
+function nextPrayer(now){
+  if(!prayers)return;
+  var best=null;
+  Object.keys(NAMES).forEach(function(k){
+    var h=prayers[k].split(':'),t=new Date(now);t.setHours(+h[0],+h[1],0,0);
+    if(t>now&&(!best||t<best.t))best={k:k,t:t};
+  });
+  if(!best){var h=prayers.Fajr.split(':'),t=new Date(now);t.setDate(t.getDate()+1);t.setHours(+h[0],+h[1],0,0);best={k:'Fajr',t:t}}
+  var tt=fmt({hour:'numeric',minute:'2-digit',hour12:true}).format(best.t);
+  $('pName').textContent=NAMES[best.k]+' '+tt;
+  var mins=Math.round((best.t-now)/6e4),H=Math.floor(mins/60),M=mins%60,nf=new Intl.NumberFormat(AR);
+  $('pLeft').textContent='بعد '+(H?nf.format(H)+' ساعة و ':'')+nf.format(M)+' دقائق';
+}
+function weather(){
+  fetch('https://api.open-meteo.com/v1/forecast?latitude='+LAT+'&longitude='+LON+'&current=temperature_2m')
+   .then(function(r){return r.json()}).then(function(j){
+    $('temp').textContent=new Intl.NumberFormat(AR).format(Math.round(j.current.temperature_2m))+'°'}).catch(function(){});
+}
+$('city').textContent=CITY;
+tick();setInterval(tick,1000);weather();setInterval(weather,6e5);setInterval(loadPrayers,36e5);
+</script>
+</body>
+</html>
